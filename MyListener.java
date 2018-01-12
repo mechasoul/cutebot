@@ -39,7 +39,11 @@ public class MyListener extends ListenerAdapter {
 	public Map<String, String> adminDatabase;
 //	public Map<String, String> voiceChannels;
 	List<Guild> connectedServers;
-	public long curTime, prevTime, quoteTime;
+	public long curTime, prevTime;
+	private long prevQuoteTime, curQuoteTime, quoteTimeThreshold;
+	private ConcurrentLinkedQueue<Long> recentMessageTimes;
+	private int recentMessageCount, recentMessageThreshold;
+	private boolean messageSentFlag;
 	public boolean timeToSave, timeToExit;
 	Charset utf8;
 	Calendar cal;
@@ -88,7 +92,16 @@ public class MyListener extends ListenerAdapter {
 		
 		curTime = System.currentTimeMillis();
 		prevTime = System.currentTimeMillis();
-		quoteTime = 0;
+		prevQuoteTime = System.currentTimeMillis();
+		curQuoteTime = System.currentTimeMillis();
+		//1 hr in ms
+		quoteTimeThreshold = 3600000;
+		recentMessageTimes<Long> = new ConcurrentLinkedQueue<Long>();
+		recentMessageCount = 0;
+		//threshold holds the size of recentMessageTimes. recentMessageCount holds the number of
+		//messages within a given timeframe
+		recentMessageThreshold = 0;
+		messageSentFlag = false;
 		timeToSave = false;
 		timeToExit = false;
 		utf8 = StandardCharsets.UTF_8;
@@ -142,6 +155,7 @@ public class MyListener extends ListenerAdapter {
 	//this is our response method most conditional stuff happens here
 	@Override
 	public void onGuildMessageReceived(GuildMessageReceivedEvent event) {
+		curQuoteTime = System.currentTimeMillis();
 		curTime = System.currentTimeMillis();
 		cal = Calendar.getInstance();
 		
@@ -151,6 +165,8 @@ public class MyListener extends ListenerAdapter {
 		User author = event.getAuthor();
 		Guild guild = event.getGuild();
 		MessageBuilder m;
+		
+		messageSentFlag = false;
 		
 		//don't respond to bot messages, unless we want to trigger the apocalypse
 		if(event.getAuthor().isBot()) {
@@ -172,7 +188,32 @@ public class MyListener extends ListenerAdapter {
 			}
 		}
 		
-
+		recentMessageCount++;
+		recentMessageTimes.add(curQuoteTime);
+		recentMessageThreshold++;
+		//remove elements until the oldest message is within quoteTimeThreshold
+		while(curQuoteTime - recentMessageTimes.peek() >= quoteTimeThreshold) {
+			recentMessageTimes.poll();
+			recentMessageThreshold--;
+		}
+		//check if we've exceeded our threshold for sending a message, and send if so
+		if(recentMessageCount >= recentMessageThreshold) {
+			recentMessageCount = 0;
+			//consider putting this code into a function since im now reusing it in a couple places
+			String msg = markovOutput.get(guild.getId()).createMessage(true);
+			if(msg.isEmpty()) {
+				if(guild.getEmotesByName("mothahh", true).isEmpty()) {
+					channel.sendMessage("aaa").queue();
+				} else {
+					m = new MessageBuilder();
+					m.append(guild.getEmotesByName("mothahh", true).get(0));
+					channel.sendMessage(m.build()).queue();
+				}
+			} else {
+				channel.sendMessage(msg).queue();
+			}
+			messageSentFlag = true;
+		}
 		
 		//oznet id
 		if(guild.getId().equals("101153748377686016")) {
@@ -186,7 +227,7 @@ public class MyListener extends ListenerAdapter {
 			markovInput.get(guild.getId()).processLine(message.getRawContent());
 		}
 
-		if(content.toLowerCase().contains("cutebot") && isQuestion(content.toLowerCase())) {
+		if(!messageSentFlag && content.toLowerCase().contains("cutebot") && isQuestion(content.toLowerCase())) {
 			String msg = markovOutput.get(guild.getId()).createMessage(true);
 			if(msg.isEmpty()) {
 				if(guild.getEmotesByName("mothahh", true).isEmpty()) {
@@ -232,7 +273,6 @@ public class MyListener extends ListenerAdapter {
 
 		//curTime - quoteTime >= 86400000 || 
 		if(content.equalsIgnoreCase("!quote")) {
-			quoteTime = curTime;
 			sendQuote(channel);
 		}
 		//f id

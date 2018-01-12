@@ -311,7 +311,7 @@ public class MyMusicPlayer extends ListenerAdapter {
 							
 							//skip
 							if((trackScheduler.requiredVotesToSkip() - trackScheduler.currentSkippingSize()) <= 0) {
-								trackScheduler.nextTrack();
+								trackScheduler.skipTrack();
 							}
 							
 						//otherwise dont
@@ -366,7 +366,7 @@ public class MyMusicPlayer extends ListenerAdapter {
 				
 				//no special restrictions on removing songs, users can do it whenever
 				if(demo.getJda().getGuildById(serverId).getAudioManager().isConnected()) {
-					//check for the url
+					//check for the url in queue first, then radio
 					AudioTrack givenTrack = trackScheduler.checkForGivenTrack(words[1]);
 					if(givenTrack != null) {
 						//check it was their song
@@ -379,7 +379,22 @@ public class MyMusicPlayer extends ListenerAdapter {
 							e.getChannel().sendMessage("song submitted by someone other than you (not allowed)").queue();
 							return;
 						}
+					//check for url in radio
 					} else {
+						givenTrack = trackScheduler.checkRadioForGivenTrack(words[1]);
+						if(givenTrack != null) {
+							//check it was their song
+							if(u.equals( (User) givenTrack.getUserData())) {
+								//get it out
+								trackScheduler.removeTrackFromRadio(givenTrack);
+								e.getChannel().sendMessage("song removed from radio").queue();
+								return;
+							} else {
+								e.getChannel().sendMessage("song submitted by someone other than you (not allowed)").queue();
+								return;
+							}
+						}
+						
 						e.getChannel().sendMessage("song not found in queue (make sure the url is the same)").queue();
 						return;
 					}
@@ -397,6 +412,7 @@ public class MyMusicPlayer extends ListenerAdapter {
 		name = "!queue";
 		c = new Command(name, user) {
 			public void response(PrivateMessageReceivedEvent e) {
+				User u = e.getAuthor();
 				InfoHolder relevantInfo;
 				String serverId="";
 				relevantInfo = getTargetInfo(e);
@@ -413,8 +429,19 @@ public class MyMusicPlayer extends ListenerAdapter {
 				
 				logger.info("queue check: \n" + trackScheduler.getQueue());
 				
+				ListIterator<AudioTrack> userSongs = trackScheduler.getUserSongs(u.getId()).listIterator(0);
+				
 				if(demo.getJda().getGuildById(serverId).getAudioManager().isConnected()) {
-					e.getChannel().sendMessage("queue currently contains " + trackScheduler.currentQueueSize() + " songs").queue();
+					e.getChannel().sendMessage("queue currently contains " + trackScheduler.currentQueueSize() + " songs. you have " 
+							+ userSongs.size() + " song(s) in queue").queue();
+					if(userSongs.size() > 0) {
+						e.getChannel().sendMessage("your queued song(s):").queue();
+						while(userSongs.hasNext()) {
+							AudioTrack t = userSongs.next();
+							e.getChannel().sendMessage("position " + (Integer) t.getUserData() + ": " 
+									+ t.getInfo().title + " (" + t.getInfo().uri + ")").queue();
+						}
+					}
 					return;
 				} else {
 					e.getChannel().sendMessage("no").queue();
@@ -511,11 +538,18 @@ public class MyMusicPlayer extends ListenerAdapter {
 				}
 				
 				//special case if we !default null - disable default play
-				if(words[1].equals("null")) {
+				if(words[1].equals("off")) {
 					trackScheduler.setDefaultTrack(null);
+					trackScheduler.playingRadio = false;
 					e.getChannel().sendMessage("default track disabled").queue();
 					return;
-				//otherwise we load the track
+				//2nd special case, turn on radio play
+				} else if(words[1].equals("radio")) {
+					trackScheduler.setDefaultTrack(null);
+					trackScheduler.playingRadio = true;
+					e.getChannel().sendMessage("radio play enabled").queue();
+					return;
+				//assume it's a link otherwise
 				} else {
 					loadDefaultTrack(serverId, words[1], e);
 				}

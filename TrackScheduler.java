@@ -27,6 +27,7 @@ public class TrackScheduler extends AudioEventAdapter {
 	private final LinkedBlockingQueue<AudioTrack> queue;
 	private LinkedList<AudioTrack> radioList;
 	public boolean playingDefaultTrack;
+	public boolean playingRadio;
 	private AudioTrack defaultTrack;
 	private User self;
 	private int radioIndex;
@@ -42,6 +43,7 @@ public class TrackScheduler extends AudioEventAdapter {
 		this.radioList = new LinkedList<AudioTrack>();
 		this.manager = new UserListManager(this.guildId);
 		this.playingDefaultTrack = false;
+		this.playingRadio = true;
 		this.defaultTrack = null;
 		self = demo.getJda().getUserById("312807432839626753");
 		this.radioIndex = -1;
@@ -112,6 +114,12 @@ public class TrackScheduler extends AudioEventAdapter {
 			if(this.defaultTrack != null) {
 				clone = this.defaultTrack.makeClone();
 				clone.setUserData(this.self);
+			} else {
+				//no tracks in queue, no set default track. play radio if enabled
+				if(this.playingRadio) {
+					clone = this.radioList.get(radioIndex).makeClone();
+					clone.setUserData(this.self);
+				}
 			}
 			player.startTrack(clone, false);
 		//next track is not null, so our queue is not empty yet! so we play the new track
@@ -128,15 +136,15 @@ public class TrackScheduler extends AudioEventAdapter {
 	public void onTrackEnd(AudioPlayer player, AudioTrack track, AudioTrackEndReason endReason) {
 		
 		//add the finished track to our list of radio tracks if it doesnt already exist
-		if(!playingDefaultTrack && radioList.indexOf(track) == -1) {
-			radioList.addFirst(track.makeClone());
+		if(!playingDefaultTrack && checkRadioForGivenTrack(track.getInfo().uri) == null) {
+			radioList.addFirst(track);
 			radioIndex++;
 		}
 		
 		manager.emptySkippingUsers();
 		manager.updatePermittedUsers();
 		
-		if(playingDefaultTrack) radioIndex++;
+		if(playingDefaultTrack && playingRadio) radioIndex++;
 		
 		//shuffling the radio list should go here
 		if(radioIndex == radioList.size()) {
@@ -169,8 +177,24 @@ public class TrackScheduler extends AudioEventAdapter {
 		return null;
 	}
 	
+	public AudioTrack checkRadioForGivenTrack(String s) {
+		for(AudioTrack t : this.radioList) {
+			if(t.getInfo().uri.equals(s)) {
+				return t;
+			}
+		}
+		return null;
+	}
+	
 	public void removeTrackFromQueue(AudioTrack track) {
 		this.queue.remove(track);
+	}
+	
+	//removes a given track from the radio list and adjusts radio index if necessary
+	public void removeTrackFromRadio(AudioTrack track) {
+		int index = this.radioList.indexOf(track);
+		this.radioList.remove(index);
+		if(index < this.radioIndex) radioIndex--;
 	}
 	
 	public String getAssociatedGuildId() {
@@ -190,18 +214,74 @@ public class TrackScheduler extends AudioEventAdapter {
 		return count;
 	}
 	
+	//takes a string user id and returns list of all their currently queued tracks
+	//NOTE this modifies the returned track's userinfo in a way unusual to eveyrthing else so b careful 
+	public LinkedList<AudioTrack> getUserSongs(String s) {
+		AudioTrack[] radioArray = new AudioTrack[radioList.size()];
+		LinkedList<AudioTrack> userSongList = new LinkedList<AudioTrack>();
+		User u;
+		AudioTrack t;
+		for(int i=0; i < radioArray.length; i++) {
+			u = (User) radioArray[i].getUserData();
+			if(u.getId().equals(s)) {
+				t = radioArray[i].clone();
+				t.setUserData(i+1);
+				userSongList.add(t);
+			}
+		}
+		
+		return userSongList;
+	}
+	
 	//fisher-yates shuffle the list for fair but random playback
 	public void shuffle(LinkedList<AudioTrack> list) {
 		AudioTrack t;
 		int j;
 		for(int i=list.size()-1; i >= 0; i--) {
-			t = list.get(i).makeClone();
+			t = list.get(i);
 			j = rand.nextInt(i+1);
-			list.set(i, list.get(j).makeClone());
+			list.set(i, list.get(j));
 			list.set(j, t);
 		}
 		
 		this.radioList = list;
+	}
+	
+	//track skipping logic
+	public void skipTrack() {
+		AudioTrack curTrack = this.player.getPlayingTrack();
+		//if it's a default track, stop playing it / remove from radio
+		if(playingDefaultTrack) {
+			if(playingRadio) {
+				//find the actual source instance of the track and remove it
+				for(AudioTrack t : radioList) {
+					if(curTrack.getInfo().uri.equals(t.getInfo().uri)) {
+						this.radioList.remove(t);
+						break;
+					}
+				}
+				
+			} else {
+				this.defaultTrack = null;
+			}
+		} 
+		
+		//track removed from radio if relevant, nulled out if default. 
+		//now do the relevant maintenance (normally done on track end)
+		
+		manager.emptySkippingUsers();
+		manager.updatePermittedUsers();
+		
+		if(playingDefaultTrack && playingRadio) radioIndex++;
+		
+		//shuffling the radio list if necessary
+		if(radioIndex == radioList.size()) {
+			radioIndex = 0;
+			shuffle(radioList);
+		}
+		
+		//finally, start next track
+		nextTrack();
 	}
 	
 	public int currentQueueSize() {
