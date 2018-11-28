@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -36,6 +37,18 @@ public class WordFilter {
 		this.id = i;
 	}
 	
+	//checks a given input string for a match against the regex this wordfilter represents
+	//returns the (first) match if found, otherwise returns null if no match is found
+	//TODO return all matches?
+	public String checkStringForMatch(String input) {
+		if(this.compiledFilter == null) return null;
+		Matcher m = this.compiledFilter.matcher(input);
+		if(m.find()) {
+			return m.group();
+		}
+		return null;
+	}
+	
 	//takes a list of comma-separated words to add and adds them to filter
 	//returns true if filter was changed as a result, false if not
 	public boolean addFilteredWords(String s) {
@@ -45,8 +58,9 @@ public class WordFilter {
 		if(this.bannedWords.size() >= MAX_BANNED_WORDS) return false;
 		boolean filterChanged = false;
 		for(String word : s.split(",")) {
-			if(StringUtils.isBlank(word)) continue;
-			if(this.bannedWords.add(word.trim())) filterChanged = true;
+			String trimmedWord = word.trim();
+			if(StringUtils.isBlank(word) || isToken(trimmedWord)) continue;
+			if(this.bannedWords.add(trimmedWord)) filterChanged = true;
 		}
 		if(filterChanged) updateFilter();
 		return filterChanged;
@@ -65,7 +79,7 @@ public class WordFilter {
 	
 	public void setFilteredWords(String s) {
 		this.bannedWords = Arrays.stream(s.split(","))
-			.filter(StringUtils::isNotBlank)
+			.filter(word -> (StringUtils.isNotBlank(word) && !isToken(word.trim())))
 			.map(String::trim)
 			.collect(Collectors.toCollection(HashSet::new));
 		updateFilter();
@@ -132,12 +146,20 @@ public class WordFilter {
 		this.isUsingExplicitRegex = status;
 	}
 	
+	private boolean isToken(String s) {
+		return (s.equalsIgnoreCase("[null]") || s.equalsIgnoreCase("[empty]"));
+	}
+	
 	public void setFilterResponse(String flags) {
 		this.filterAction = convertStringToAction(flags);
 	}
 	
-	public String getStringFilterResponse() {
+	public String getFilterResponseString() {
 		return convertActionToString(this.filterAction);
+	}
+	
+	public EnumSet<FilterResponse> getFilterResponseAction() {
+		return this.filterAction;
 	}
 	
 	public static EnumSet<FilterResponse> convertStringToAction(String input) {
@@ -200,7 +222,19 @@ public class WordFilter {
 		}
 	}
 	
-	
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+		sb.append("WordFilter{server=");
+		sb.append(IdUtils.getFormattedServer(this.id));
+		sb.append(", banned words=");
+		sb.append(this.bannedWords);
+		sb.append(", usingExplicitRegex=");
+		sb.append(this.isUsingExplicitRegex);
+		sb.append(", regex=");
+		sb.append((this.compiledFilter == null ? "[null]" : this.compiledFilter.pattern()));
+		sb.append("}");
+		return sb.toString();
+	}
 	
 	
 }
