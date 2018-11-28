@@ -20,8 +20,11 @@ import org.slf4j.LoggerFactory;
 public class PermissionsManager {
 
 	private static final Logger logger = LoggerFactory.getLogger(PermissionsManager.class);
+	//user -> set of servers
 	private static final Map<Long, HashSet<Long>> userToServerPerms = new ConcurrentHashMap<Long, HashSet<Long>>();
+	//server -> set of users
 	private static final Map<Long, HashSet<Long>> serverToUserPerms = new ConcurrentHashMap<Long, HashSet<Long>>();
+	//user -> server
 	private static final Map<Long, Long> defaultGuilds = new ConcurrentHashMap<Long, Long>();
 	
 	public static void save() {
@@ -72,9 +75,21 @@ public class PermissionsManager {
 					serverToUserPerms.get(serverId).add(userId);
 					
 				}
+				//empty admins.ini check
+				//other problems will throw an exception but this would fail quietly
+				//shouldnt ever happen, but maybe in exceptional circumstances
+				if(serverToUserPerms.get(serverId).isEmpty()) {
+					serverToUserPerms.get(serverId).add(g.getOwner().getUser().getIdLong());
+					logger.warn("admins.ini was empty for server " 
+							+ IdUtils.getFormattedServer(serverId) + "! added owner as admin, "
+							+ "proceeding...");
+				}
+					
+				
 			} catch (IOException | NumberFormatException e) {
 				logger.error("couldn't build permissions object for guild "
-						+ IdUtils.getFormattedServer(serverId) + " in PermissionsManager.load(). fatal error");
+						+ IdUtils.getFormattedServer(serverId) + " in PermissionsManager.load(). fatal error: "
+						+ e.getMessage());
 				e.printStackTrace();
 				System.exit(1);
 			} 
@@ -158,6 +173,7 @@ public class PermissionsManager {
 			HashSet<Long> servers = new HashSet<Long>(4);
 			servers.add(serverId);
 			userToServerPerms.put(userId, servers);
+			if(!defaultGuilds.containsKey(userId)) defaultGuilds.put(userId,  serverId);
 			added = true;
 		} else {
 			if(userToServerPerms.get(userId).add(serverId)) {
@@ -180,10 +196,21 @@ public class PermissionsManager {
 			return false;
 		}
 		
+		//need the following
+		//remove server id from user id's hashset and return true
+		//if set now empty, remove mapping 
+		//if not present, return false
+		//if key not in map, return false
+		
+		
+		//has check-then-act race condition
+		//same thing everywhere else in my code
+		//change it sometime maybe
 		//check perms map. if user is absent, can't do anything
 		if(!userToServerPerms.containsKey(userId)) {
 			return false;
 		} else {
+			//possible race condition here leading to null pointer
 			HashSet<Long> servers = userToServerPerms.get(userId);
 			//check their servers for the given id. remove it if it's there
 			if(servers.remove(serverId)) {
@@ -204,6 +231,17 @@ public class PermissionsManager {
 		}
 		
 		return removed;
+	}
+	
+	//should never be in a server without a corresponding entry in serverToUserPerms
+	//so this should never return null as long as we're managing the map correctly on server join/etc
+	public static HashSet<Long> getServerAdmins(long serverId) {
+		return serverToUserPerms.get(serverId);
+	}
+	
+	//could return null but shouldn't ever be called in a circumstance where it will
+	public static HashSet<Long> getServersWithAdminPermissions(long userId) {
+		return userToServerPerms.get(userId);
 	}
 	
 	public static boolean isDeveloper(long id) {

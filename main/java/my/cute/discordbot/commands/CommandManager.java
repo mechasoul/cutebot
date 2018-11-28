@@ -1,10 +1,6 @@
 package my.cute.discordbot.commands;
 
-import java.util.List;
-
 import my.cute.discordbot.IdUtils;
-import my.cute.discordbot.preferences.PreferencesManager;
-import net.dv8tion.jda.core.entities.Guild;
 import net.dv8tion.jda.core.events.message.priv.PrivateMessageReceivedEvent;
 
 import org.apache.commons.lang3.StringUtils;
@@ -13,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 public class CommandManager {
 
+	@SuppressWarnings("unused")
 	private static final Logger logger = LoggerFactory.getLogger(CommandManager.class);
 	private static CommandSet privateCommands;
 	private static CommandSet guildCommands;
@@ -26,27 +23,23 @@ public class CommandManager {
 	public static long obtainTargetGuildId(PrivateMessageReceivedEvent e) {
 		
 		try {
-			String msg = sanitize(e.getMessage().getContentDisplay());
+			String msg = sanitize(e.getMessage().getContentRaw());
 			String[] words = msg.split(" ");
 			//all commands assume server id is the last parameter, so check it
 			long serverId = Long.parseLong(words[words.length - 1]);
-			if(PreferencesManager.isValidGuild(serverId)) return serverId;
-			//no valid guild id specified
-			//check if they're only in one server, and use it if so
-			List<Guild> mutualGuilds = e.getAuthor().getMutualGuilds();
-			if(mutualGuilds.size() == 1) return mutualGuilds.get(0).getIdLong();
-			//they're in more than one guild
-			//check if a default guild is specified
-			Long defaultId = PermissionsManager.getDefaultGuild(e.getAuthor().getIdLong());
-			if(defaultId != null) return defaultId.longValue();
-			//no default guild specified
-			//can't determine target server
-			return -1L;
+			if(IdUtils.isValidServer(serverId)) return serverId;
+			//non-guild id long provided by user
+			//use default guild
+			//every admin should have a default guild, added when they become an admin of a guild
+			//non-admin users won't have an entry in defaultGuilds, so check for that
+			Long defaultGuildId = PermissionsManager.getDefaultGuild(e.getAuthor().getIdLong());
+			return (defaultGuildId == null ? -1L : defaultGuildId.longValue());
 		} catch (NumberFormatException e1) {
-			logger.info("WARNING numberformatexception in trying to parse id from user: " 
-					+ IdUtils.getFormattedUser(e.getAuthor().getIdLong())
-					+ "\r\nmsg: " + e.getMessage().getContentDisplay());
-			return -1L;
+			//last argument wasn't a long
+			//likely they're using default guild
+			//in any case, get default guild value
+			Long defaultGuildId = PermissionsManager.getDefaultGuild(e.getAuthor().getIdLong());
+			return (defaultGuildId == null ? -1L : defaultGuildId.longValue());
 		}
 	}
 	
