@@ -5,12 +5,7 @@ import java.util.Random;
 
 import my.cute.discordbot.IdUtils;
 import my.cute.discordbot.bot.DatabaseManager;
-import my.cute.discordbot.bot.GuildDatabase;
-import my.cute.discordbot.preferences.GuildPreferences;
 import my.cute.discordbot.preferences.PreferencesManager;
-import my.cute.markov.InputHandler;
-import my.cute.markov.MarkovDatabase;
-import my.cute.markov.OutputHandler;
 import net.dv8tion.jda.core.MessageBuilder;
 import net.dv8tion.jda.core.entities.Emote;
 import net.dv8tion.jda.core.entities.Guild;
@@ -24,16 +19,10 @@ import org.slf4j.LoggerFactory;
 public class GuildMessageHandler {
 	
 	private static final Logger logger = LoggerFactory.getLogger(GuildMessageHandler.class);
+	private static final Logger messageLogger = LoggerFactory.getLogger("MessageLogger");
 
-	public final long id;
+	private final long id;
 	private final Guild guild;
-	private GuildPreferences preferences;
-	//formatted identifier string
-	private String guildString;
-//	private InputHandler markovInput;
-//	private OutputHandler markovOutput;
-//	private MarkovDatabase markovDb;
-	private GuildDatabase db;
 	
 	private WordFilterHandler wordFilterHandler;
 	private AutonomyHandler autonomyHandler;
@@ -41,21 +30,12 @@ public class GuildMessageHandler {
 	public GuildMessageHandler(Guild g) {
 		this.id = g.getIdLong();
 		this.guild = g;
-		this.guildString = IdUtils.getFormattedServer(this.id);
 		
-		this.preferences = PreferencesManager.getGuildPreferences(this.id);
-		
-//		markovDb = new MarkovDatabase(g.getId(), g.getName().replaceAll("[^A-Za-z0-9]", ""), 10, 6, true);
-//		markovInput = new InputHandler(markovDb);
-//		markovOutput = new OutputHandler(markovDb);
-//		markovDb.loadDatabase();
-		this.db = DatabaseManager.getDatabase(this.id);
-		
-		wordFilterHandler = new WordFilterHandler(this);
+		wordFilterHandler = new WordFilterHandler(this.id);
 		autonomyHandler = new AutonomyHandler(this.guild);
 	}
 	
-	//
+	//TODO add guild command handling here
 	public boolean handle(GuildMessageReceivedEvent e) {
 		
 		TextChannel c = e.getChannel();
@@ -64,36 +44,38 @@ public class GuildMessageHandler {
 		//wordfilterhandler determines whether or not we process the message
 		//let it do its thing here and it returns whether or not to process
 		boolean shouldProcess = this.wordFilterHandler.handle(e);
+		
+		//does this check go somewhere else?
+		if(e.getAuthor().isBot()) return false;
+		
 		boolean processed = false;
 		boolean responseSent = false;
 		
-		if (isDiscussionChannel(e.getChannel())) {
+		//TODO permission check somewhere to see if we can send in channel?
+		//or catch insufficientpermissionexception on the sendMessage call
+		if (PreferencesManager.getGuildPreferences(this.id).isDiscussionChannel(c.getIdLong())) {
 			//check if we need to generate autonomous message
 			if (this.autonomyHandler.handle()) {
-				try {
-					sendMessageToChannel(c);
-					responseSent = true;
-					System.out.println("autonomous message in server "
-							+ this.guildString);
-				} catch (Exception ex) {
-					// TODO Auto-generated catch block
-					System.out
-							.println("exception thrown in autonomous message gen in server "
-									+ this.guildString);
-					ex.printStackTrace();
-				}
+				Message m = generateMessage();
+				c.sendMessage(m).queue();
+				responseSent = true;
+				messageLogger.info("autonomous message in server " 
+						+ IdUtils.getFormattedServer(this.id) + ", message: " 
+						+ m.getContentRaw());
 			}
-		}
-		//thats all the wordfilter stuff
-		//check if its in a valid channel. if so, process it
-		if(shouldProcess && isDiscussionChannel(e.getChannel())) {
-			this.db.processLine(e.getMessage().getContentRaw());
-			processed = true;
+			if(shouldProcess) {
+				DatabaseManager.getDatabase(this.id).processLine(e.getMessage().getContentRaw());
+				processed = true;
+			}
 		}
 		
 		if(!responseSent && content.contains("cutebot") && isQuestion(content)) {
-			sendMessageToChannel(c);
+			Message m = generateMessage();
+			c.sendMessage(m).queue();
 			responseSent = true;
+			messageLogger.info("prompted message in server " 
+					+ IdUtils.getFormattedServer(this.id) + ", message: " 
+					+ m.getContentRaw());
 		}
 		if(!responseSent && (content.contains("cutebot") || content.contains(":mothyes:"))) {
 			generateReaction(e.getMessage(), c);
@@ -107,46 +89,53 @@ public class GuildMessageHandler {
 	//Input: target channel c
 	//Output: generates a message from the server's markovdb and sends it to the given channel
 	//Checks for certain illegal message circumstances
-	public void sendMessageToChannel(TextChannel c) {
+	private Message generateMessage() {
 		String msg;
 		int attemptCounter = 0;
-		MessageBuilder m = null;
+		MessageBuilder mb = null;
 		while(attemptCounter < 10) {
 			//generate message string
-			msg = this.db.generateMessage(true);
+			msg = DatabaseManager.getDatabase(this.id).generateMessage(true);
 			attemptCounter++;
 
 			//message validation
 			//if the message is empty, something weird happened so skip the message regeneration and just send a garb msg
 			if(msg.isEmpty()) {
-				logger.info("WARNING generated empty message in server " + this.guildString);
-				if(this.guild.getEmotesByName("mothahh", true).isEmpty()) {
-					m = new MessageBuilder("aaa");
-				} else {
-					m = new MessageBuilder();
-					m.append(this.guild.getEmotesByName("mothahh", true).get(0));
+				logger.warn("generated empty message in server " + IdUtils.getFormattedServer(this.id)
+						+ " in GuildMessageHandler.generateMessage()");
+				mb = new MessageBuilder();
+
+				try {
+					mb.append(this.guild.getEmotesByName("mothahh", true).get(0));
+				} catch (IndexOutOfBoundsException e) {
+					mb.append("aaa");
 				}
+
 				break;
 			//message nonempty. check if it has a banned phrase - if so, regen
-			} else if(this.wordFilterHandler.containsBannedPhrase(msg) != null){
+			} else if(PreferencesManager.getGuildPreferences(this.id)
+					.checkStringAgainstFilter(msg) != null){
 				continue;
 			//message content ok. final validation stuff
 			} else {
-				m = new MessageBuilder(msg);
+				mb = new MessageBuilder(msg);
 				//if pings banned in server, strip them
-				if(!preferences.allowPings)
-					m.stripMentions(this.guild, Message.MentionType.USER, Message.MentionType.EVERYONE, Message.MentionType.HERE, Message.MentionType.ROLE);
+				if(!PreferencesManager.getGuildPreferences(this.id).pingsEnabled())
+					mb.stripMentions(this.guild, Message.MentionType.USER, Message.MentionType.EVERYONE, 
+							Message.MentionType.HERE, Message.MentionType.ROLE);
 				break;
 			}
 		}
 
 		//if we never generated a message, generate garb msg
-		if(m == null) {
-			m = new MessageBuilder("aaa");
-			logger.info("WARNING reached maximum message generation attempts in server " + this.guildString);
+		if(mb == null) {
+			mb = new MessageBuilder("aaa");
+			logger.warn("reached maximum message generation attempts in server " 
+					+ IdUtils.getFormattedServer(this.id) + " in GuildMessageHandler.sendMessageToChannel()"
+					+ " (their filter: " + PreferencesManager.getGuildPreferences(this.id).getWordFilterToString() + ")");
 		}
-		//otherwise, send our message
-		c.sendMessage(m.build()).queue();
+		
+		return mb.build();
 
 
 	} 
@@ -193,22 +182,12 @@ public class GuildMessageHandler {
 		}
 	}
 	
-	private boolean isDiscussionChannel(TextChannel ch) {
-		return this.preferences.discussionChannels.contains(ch.getIdLong());
-	}
-	
-	
-	
-	public GuildPreferences getPreferences() {
-		return this.preferences;
-	}
-	
-	public String getGuildString() {
-		return this.guildString;
-	}
-	
 	public Guild getGuild() {
 		return this.guild;
+	}
+	
+	public long getId() {
+		return this.id;
 	}
 
 	
