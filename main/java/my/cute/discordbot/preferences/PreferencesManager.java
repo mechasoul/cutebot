@@ -30,7 +30,4 @@ public class PreferencesManager {
 		return guildPreferences.get(id);
 	}
 	
-	public static boolean isValidGuild(long id) {
-		return guildPreferences.containsKey(id);
-	}
 }

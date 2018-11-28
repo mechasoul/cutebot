@@ -7,14 +7,12 @@ import net.dv8tion.jda.core.entities.Guild;
 
 //buddy class to handle the autonomous message output stuff
 public class AutonomyHandler {
-	private boolean enabled;
 	private long curMessageTime;
 	private ConcurrentLinkedQueue<Long> recentMessageTimes;
 	private int recentMessageCount, recentMessageThreshold;
 	private final Guild guild;
 	
 	public AutonomyHandler(Guild g) {
-		this.enabled = false;
 		this.curMessageTime = 0;
 		this.recentMessageTimes = new ConcurrentLinkedQueue<Long>();
 		this.recentMessageCount = 0;
@@ -39,7 +37,7 @@ public class AutonomyHandler {
 	 * maybe changes things slightly but uhh this seems like a lot of junk for no reason
 	 */
 	public boolean handle() {
-		if(!this.enabled) {
+		if(!PreferencesManager.getGuildPreferences(this.guild.getIdLong()).autonomyEnabled()) {
 			return false;
 		}
 		this.curMessageTime = System.currentTimeMillis();
@@ -48,7 +46,7 @@ public class AutonomyHandler {
 		this.recentMessageTimes.add(this.curMessageTime);
 		this.recentMessageThreshold++;
 		//remove elements until the oldest message is within messageTimeThreshold
-		while(this.curMessageTime - this.recentMessageTimes.peek() >= PreferencesManager.getGuildPreferences(this.guild.getIdLong()).autonomyThreshold) {
+		while(this.curMessageTime - this.recentMessageTimes.peek() >= PreferencesManager.getGuildPreferences(this.guild.getIdLong()).getAutonomyTimer()) {
 			this.recentMessageTimes.poll();
 			this.recentMessageThreshold--;
 		}
@@ -59,14 +57,6 @@ public class AutonomyHandler {
 		}
 		
 		return false;
-	}
-	
-	public void enable() {
-		this.enabled = true;
-	}
-	
-	public void disable() {
-		this.enabled = false;
 	}
 	
 	public Guild getGuild() {
