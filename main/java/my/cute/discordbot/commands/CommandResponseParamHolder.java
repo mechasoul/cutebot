@@ -6,10 +6,10 @@ import net.dv8tion.jda.core.events.message.priv.PrivateMessageReceivedEvent;
 //helper class to hold relevant information needed for a command to execute
 public class CommandResponseParamHolder {
 	
-	public PrivateMessageReceivedEvent privateMessageEvent;
-	public GuildMessageReceivedEvent guildMessageEvent;
-	public long targetGuild;
-	public String message;
+	private PrivateMessageReceivedEvent privateMessageEvent;
+	private GuildMessageReceivedEvent guildMessageEvent;
+	private long targetGuild;
+	private String message;
 	
 	public CommandResponseParamHolder() {
 		this.privateMessageEvent = null;
@@ -35,6 +35,38 @@ public class CommandResponseParamHolder {
 		this.privateMessageEvent = e;
 		this.targetGuild = t;
 		this.message = m;
+	}
+
+	public PrivateMessageReceivedEvent getPrivateMessageEvent() {
+		return privateMessageEvent;
+	}
+
+	public void setPrivateMessageEvent(PrivateMessageReceivedEvent privateMessageEvent) {
+		this.privateMessageEvent = privateMessageEvent;
+	}
+
+	public GuildMessageReceivedEvent getGuildMessageEvent() {
+		return guildMessageEvent;
+	}
+
+	public void setGuildMessageEvent(GuildMessageReceivedEvent guildMessageEvent) {
+		this.guildMessageEvent = guildMessageEvent;
+	}
+
+	public long getTargetGuild() {
+		return targetGuild;
+	}
+
+	public void setTargetGuild(long targetGuild) {
+		this.targetGuild = targetGuild;
+	}
+
+	public String getMessage() {
+		return message;
+	}
+
+	public void setMessage(String message) {
+		this.message = message;
 	}
 	
 }

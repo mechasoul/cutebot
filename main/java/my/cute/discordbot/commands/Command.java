@@ -8,12 +8,12 @@ public abstract class Command {
 		PRIVATE, GUILD
 	}
 	
-	public final CommandType type;
-	public final String name;
-	public final RequiredPermissionLevel reqPermission;
-	public final boolean requiresTargetServer;
-	String description;
-	String help;
+	private final CommandType type;
+	private final String name;
+	private final RequiredPermissionLevel reqPermission;
+	private final boolean requiresTargetServer;
+	private String description;
+	private String help;
 	
 	public Command(String n) {
 		this.name = n;
@@ -61,6 +61,30 @@ public abstract class Command {
 		return null;
 	}
 	
+	public CommandType getType() {
+		return type;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public RequiredPermissionLevel getReqPermission() {
+		return reqPermission;
+	}
+
+	public boolean requiresTargetServer() {
+		return requiresTargetServer;
+	}
+
+	public String getDescription() {
+		return description;
+	}
+
+	public String getHelp() {
+		return help;
+	}
+
 	public void setDescription(String d) {
 		description = d;
 	}
@@ -77,12 +101,12 @@ public abstract class Command {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result + ((name == null) ? 0 : name.hashCode());
+		result = prime * result + ((type == null) ? 0 : type.hashCode());
 		return result;
 	}
 
 	/* 
-	 * command equality is determined by name
-	 * maybe it should be type too?
+	 * two commands are equal if they have the same name and type
 	 */
 	@Override
 	public boolean equals(Object obj) {
@@ -101,6 +125,9 @@ public abstract class Command {
 				return false;
 			}
 		} else if (!name.equals(other.name)) {
+			return false;
+		}
+		if (type != other.type) {
 			return false;
 		}
 		return true;
