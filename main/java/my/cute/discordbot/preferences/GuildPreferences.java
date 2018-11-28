@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -75,20 +76,36 @@ public class GuildPreferences {
 		}
 	}
 	
-	public void setPingStatus(boolean status) {
-		this.allowPings = status;
-	}
-	
 	public boolean pingsEnabled() {
 		return this.allowPings;
 	}
 	
-	public void setAutonomyStatus(boolean status) {
-		this.autonomyEnabled = status;
+	public void enablePings() {
+		this.allowPings = true;
+	}
+	
+	public void disablePings() {
+		this.allowPings = false;
+	}
+	
+	void setPingStatus(boolean status) {
+		this.allowPings = status;
 	}
 	
 	public boolean autonomyEnabled() {
 		return this.autonomyEnabled;
+	}
+	
+	public void enableAutonomy() {
+		this.autonomyEnabled = true;
+	}
+	
+	public void disableAutonomy() {
+		this.autonomyEnabled = false;
+	}
+	
+	void setAutonomyStatus(boolean status) {
+		this.autonomyEnabled = status;
 	}
 	
 	public void setAutonomyTimer(long t) {
@@ -97,6 +114,10 @@ public class GuildPreferences {
 	
 	public long getAutonomyTimer() {
 		return this.autonomyTimer;
+	}
+	
+	public boolean isDiscussionChannel(Long id) {
+		return this.discussionChannels.contains(id);
 	}
 	
 	public boolean addDiscussionChannel(String channelId) {
@@ -126,6 +147,12 @@ public class GuildPreferences {
 		this.discussionChannels = Arrays.stream(list.split(","))
 				.map(Long::parseLong)
 				.collect(Collectors.toCollection(HashSet::new));
+	}
+	
+	//takes string s and checks it for a match with this server's wordfilter
+	//returns the matching string if a match was found, or null if nothing found
+	public String checkStringAgainstFilter(String s) {
+		return this.wordFilter.checkStringForMatch(s);
 	}
 	
 	//String s is comma-separated list of words to add to wordfilter
@@ -166,7 +193,15 @@ public class GuildPreferences {
 		this.wordFilter.setFilterResponse(flags);
 	}
 	
-	public String getWordFilterResponse() {
-		return this.wordFilter.getStringFilterResponse();
+	public String getWordFilterResponseFlags() {
+		return this.wordFilter.getFilterResponseString();
+	}
+	
+	public EnumSet<FilterResponse> getWordFilterResponseAction() {
+		return this.wordFilter.getFilterResponseAction();
+	}
+	
+	public String getWordFilterToString() {
+		return this.wordFilter.toString();
 	}
 }
