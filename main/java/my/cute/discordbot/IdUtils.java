@@ -1,6 +1,7 @@
 package my.cute.discordbot;
 
 import my.cute.discordbot.bot.demo;
+import net.dv8tion.jda.core.entities.Guild;
 import net.dv8tion.jda.core.entities.Member;
 import net.dv8tion.jda.core.entities.TextChannel;
 import net.dv8tion.jda.core.entities.User;
@@ -17,9 +18,20 @@ public class IdUtils {
 			String out = demo.getJda().getGuildById(serverId).getName() + " (" + serverId + ")";
 			return out;
 		} catch (NullPointerException e) {
-			// TODO Auto-generated catch block
-			logger.error("nullpointer in trying to retrieve formatted server string for server "
+			logger.error("IdUtils.getFormattedServer(long): nullpointer in trying to retrieve formatted server string for server "
 					+ serverId);
+			e.printStackTrace();
+			return "null error";
+		}
+	}
+	
+	public static String getFormattedServer(Guild server) {
+		try {
+			String out = server.getName() + " (" + server.getId() + ")";
+			return out;
+		} catch (NullPointerException e) {
+			logger.error("IdUtils.getFormattedServer(long): nullpointer in trying to retrieve formatted server string for server "
+					+ server.getId());
 			e.printStackTrace();
 			return "null error";
 		}
@@ -32,7 +44,7 @@ public class IdUtils {
 					+ m.getUser().getDiscriminator() + " id=" + userId + ")";
 			return out;
 		} catch (NullPointerException e) {
-			logger.error("nullpointer in trying to retrieve formatted user string for user " + userId
+			logger.error("IdUtils.getFormattedUser(long,long): nullpointer in trying to retrieve formatted user string for user " + userId
 					+ ", server " + serverId);
 			e.printStackTrace();
 			return "null error";
@@ -44,7 +56,7 @@ public class IdUtils {
 			String out = getFormattedUser(Long.parseLong(userId), serverId);
 			return out;
 		} catch (NumberFormatException e) {
-			logger.error("numberformatexception in trying to parse given user id: " + userId);
+			logger.error("IdUtils.getFormattedUser(String,long): numberformatexception in trying to parse given user id: " + userId);
 			e.printStackTrace();
 			return "numberformatexception";
 		}
@@ -56,7 +68,7 @@ public class IdUtils {
 			String out = u.getName() + "#" + u.getDiscriminator() + " (id=" + userId + ")";
 			return out;
 		} catch (NullPointerException e) {
-			logger.error("nullpointer in trying to retrieve formatted user string for user " + userId);
+			logger.error("IdUtils.getFormattedUser(long): nullpointer in trying to retrieve formatted user string for user " + userId);
 			e.printStackTrace();
 			return "null error";
 		}
@@ -67,7 +79,7 @@ public class IdUtils {
 			String out = getFormattedUser(Long.parseLong(userId));
 			return out;
 		} catch (NumberFormatException e) {
-			logger.error("numberformatexception in trying to parse given user id: " + userId);
+			logger.error("IdUtils.getFormattedser(String): numberformatexception in trying to parse given user id: " + userId);
 			e.printStackTrace();
 			return "numberformatexception";
 		}
@@ -77,8 +89,7 @@ public class IdUtils {
 		try {
 			return getFormattedChannel(Long.parseLong(channelId), serverId);
 		} catch (NumberFormatException e) {
-			logger.error("NumberFormatException on parsing channel id: " + channelId 
-					+ " in IdUtils.getFormattedChannel(String, long)");
+			logger.error("IdUtils.getFormattedChannel(String,long): NumberFormatException on parsing channel id: " + channelId);
 			e.printStackTrace();
 			return "numberformatexception";
 		} 
@@ -90,12 +101,23 @@ public class IdUtils {
 			String out = t.getName() + " (id=" + t.getId() + ")";
 			return out;
 		} catch (NullPointerException e) {
-			logger.error("nullpointer in trying to retrieve formatted channel string "
-					+ " in IdUtils.getFormattedChannel(long,long) for server " + serverId 
+			logger.error("IdUtils.getFormattedChannel(long,long): nullpointer in trying to retrieve formatted channel string "
+					+ "for server " + serverId 
 					+ ", channel " + channelId);
 			e.printStackTrace();
 			return "nullpointerexception";
 		}
+	}
+	
+	public static String getFormattedChannel(TextChannel channel) {
+		try {
+			String out = channel.getName() + " (id=" + channel.getId() + ")";
+			return out;
+		} catch (NullPointerException e) {
+			logger.error("IdUtils.getFormattedChannel(String,long): nullpointerexception on channel id: " + channel.getId());
+			e.printStackTrace();
+			return "nullpointerexception";
+		} 
 	}
 	
 	public static boolean isValidChannel(String channelId, long serverId) {
@@ -116,7 +138,7 @@ public class IdUtils {
 			boolean exists = (demo.getJda().getGuildById(serverId).getTextChannelById(channelId) != null);
 			return exists;
 		} catch (NullPointerException e) {
-			logger.error("null pointer that shouldn't exist in IdUtils.isValidChannel(long, long) with server id " + serverId);
+			logger.error("IdUtils.isValidChannel(long,long): null pointer that shouldn't exist with server id " + serverId);
 			e.printStackTrace();
 			return false;
 		} 
