@@ -16,7 +16,7 @@ public class PrivateMessageHandler {
 	private static final Logger logger = LoggerFactory.getLogger(PrivateMessageHandler.class);
 	private static final Logger pmLogger = LoggerFactory.getLogger("PMLogger");
 
-	public void handle(PrivateMessageReceivedEvent e) {
+	public static void handle(PrivateMessageReceivedEvent e) {
 		pmLogger.info(IdUtils.getFormattedUser(e.getAuthor().getId()) + ": " + e.getMessage().getContentRaw());
 		
 		//sanitize messages from non-devs
@@ -46,7 +46,19 @@ public class PrivateMessageHandler {
 			if (command.requiresTargetServer()) {
 				//attempt to get target server
 				//if no server provided, uses default server
-				long serverId = CommandManager.obtainTargetGuildId(e);
+				//if default server invalid, we get an exception
+				long serverId;
+				try {
+					serverId = CommandManager.obtainTargetGuildId(e);
+				} catch (IllegalArgumentException ex) {
+					logger.info("user " + IdUtils.getFormattedUser(e.getAuthor().getIdLong())
+							+ "'s default guild no longer exists. their message: " + e.getMessage().getContentRaw()
+							+ ", error: " + ex.getMessage());
+					e.getChannel().sendMessage("error: no valid server id specified, and "
+							+ "your default server is no longer valid (provide a server id or "
+							+ "set a new default server with !default").queue();
+					return;
+				}
 				//admins should never return -1L here, because admins should
 				//always have an entry in PermissionsManager.defaultGuilds
 				//regular users however won't necessarily have default guild set
