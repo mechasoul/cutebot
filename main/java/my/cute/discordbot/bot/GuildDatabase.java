@@ -13,7 +13,7 @@ public class GuildDatabase {
 	
 	public GuildDatabase(Guild g) {
 		
-		this.db = new MarkovDatabase(g.getId(), g.getName().replaceAll("[^A-Za-z0-9]", ""), 10, 6, true);
+		this.db = new MarkovDatabase(g.getId(), g.getName().replaceAll("[^A-Za-z0-9]", ""), 10, 8, true);
 		this.input = new InputHandler(db);
 		this.output = new OutputHandler(db);
 		
