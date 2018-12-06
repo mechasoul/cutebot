@@ -1,65 +1,42 @@
 package my.cute.discordbot.handlers;
 
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 import my.cute.discordbot.preferences.PreferencesManager;
-import net.dv8tion.jda.core.entities.Guild;
 
 //buddy class to handle the autonomous message output stuff
 public class AutonomyHandler {
-	private long curMessageTime;
-	private ConcurrentLinkedQueue<Long> recentMessageTimes;
-	private int recentMessageCount, recentMessageThreshold;
-	private final Guild guild;
+	private final long id;
+	private long recentMessageTime;
 	
-	public AutonomyHandler(Guild g) {
-		this.curMessageTime = 0;
-		this.recentMessageTimes = new ConcurrentLinkedQueue<Long>();
-		this.recentMessageCount = 0;
-		this.recentMessageThreshold = 0;
-		this.guild = g;
+	public AutonomyHandler(long i) {
+		this.id = i;
+		this.recentMessageTime = -1L;
 	}
 	
 	/*
 	 * autonomy works as follows
-	 * we track the number of messages sent recently
-	 * (where recently is defined by messageTimeThreshold)
-	 * we track them by maintaining a queue of all the times at which a msg was received
-	 * and maintaining a count of how many messages have been received in total
-	 * our queue holds an entry for each message received within the threshold
-	 * so at any time its size represents the number of msgs received in the recent threshold
-	 * once our total message count exceeds the queue size, we send a message
-	 * and reset our total message received count to 0
-	 * i dont remember why i decided to do it this way
-	 * TODO is there any reason to not just scrap all of this,
-	 * hold the time of the last autonomous msg, and check if current time - that time exceeds threshold?
-	 * i think the this.recentMessageCount > this.recentMessageThreshold check not being >= 
-	 * maybe changes things slightly but uhh this seems like a lot of junk for no reason
+	 * returns true if it's time for an auto message, false if not
+	 * if its disabled in server, return false
+	 * starts counting from first message since our last auto message
+	 * once it's been enough time, reset timer and return true
+	 * next time a message is received, timer will be set to that message time
+	 * and repeat
 	 */
 	public boolean handle() {
-		if(!PreferencesManager.getGuildPreferences(this.guild.getIdLong()).autonomyEnabled()) {
+		
+		if(!PreferencesManager.getGuildPreferences(this.id).autonomyEnabled()) {
 			return false;
 		}
-		this.curMessageTime = System.currentTimeMillis();
 		
-		this.recentMessageCount++;
-		this.recentMessageTimes.add(this.curMessageTime);
-		this.recentMessageThreshold++;
-		//remove elements until the oldest message is within messageTimeThreshold
-		while(this.curMessageTime - this.recentMessageTimes.peek() >= PreferencesManager.getGuildPreferences(this.guild.getIdLong()).getAutonomyTimer()) {
-			this.recentMessageTimes.poll();
-			this.recentMessageThreshold--;
-		}
-		
-		if(this.recentMessageCount > this.recentMessageThreshold) {
-			this.recentMessageCount = 0;
-			return true;
+		if(this.recentMessageTime == -1L) {
+			this.recentMessageTime = System.currentTimeMillis();
+		} else {
+			if((System.currentTimeMillis() - recentMessageTime) >= PreferencesManager.getGuildPreferences(this.id).getAutonomyTimer()) {
+				this.recentMessageTime = -1L;
+				return true;
+			}
 		}
 		
 		return false;
 	}
 	
-	public Guild getGuild() {
-		return this.guild;
-	}
 }
