@@ -4,12 +4,16 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
 import my.cute.discordbot.IdUtils;
+import net.dv8tion.jda.core.entities.TextChannel;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -23,8 +27,8 @@ public class GuildPreferences {
 	private boolean allowPings;
 	private final WordFilter wordFilter;
 	//set of the channels to take messages from for our database
-	//each entry is a string representation of the channel id
-	private HashSet<Long> discussionChannels;
+	//each entry is a channel id
+	private Set<Long> discussionChannels;
 	//whether autonomy is on/off
 	private boolean autonomyEnabled;
 	//time between autonomous messages, in ms
@@ -34,19 +38,19 @@ public class GuildPreferences {
 	
 	public GuildPreferences(long i) {
 		this.allowPings = true;
-		this.discussionChannels = null;
 		this.autonomyEnabled = false;
 		this.id = i;
+		//24 hrs in ms
 		this.autonomyTimer = 86400000L;
 		this.wordFilter = new WordFilter(this.id);
-		
+		this.discussionChannels = ConcurrentHashMap.newKeySet();
 	}
 	
 	public GuildPreferences(long i, WordFilter w) {
 		this.allowPings = true;
-		this.discussionChannels = null;
 		this.autonomyEnabled = false;
 		this.id = i;
+		this.discussionChannels = ConcurrentHashMap.newKeySet();
 		this.autonomyTimer = 86400000L;
 		this.wordFilter = w;
 		
@@ -116,8 +120,16 @@ public class GuildPreferences {
 		return this.autonomyTimer;
 	}
 	
+	public Set<Long> getDiscussionChannels() {
+		return Collections.unmodifiableSet(this.discussionChannels);
+	}
+	
 	public boolean isDiscussionChannel(Long id) {
-		return this.discussionChannels.contains(id);
+		return (this.discussionChannels.isEmpty() ? true : this.discussionChannels.contains(id));
+	}
+	
+	public boolean isDiscussionChannel(TextChannel c) {
+		return isDiscussionChannel(c.getIdLong());
 	}
 	
 	public boolean addDiscussionChannel(String channelId) {
@@ -136,9 +148,9 @@ public class GuildPreferences {
 		}
 	}
 	
-	public void setDiscussionChannels(HashSet<Long> channels) {
+	public void setDiscussionChannels(Set<Long> channels) {
 		this.discussionChannels.clear();
-		this.discussionChannels = new HashSet<Long>(channels);
+		this.discussionChannels.addAll(channels);
 	}
 	
 	//takes comma-separated list of ids for discussion channels
